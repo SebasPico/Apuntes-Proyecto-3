@@ -1,0 +1,71 @@
+import 'package:flutter/foundation.dart';
+
+import '../data/repositories/sesion_repository.dart';
+import '../models/grupo_familiar.dart';
+import '../models/usuario.dart';
+import 'auth_controller.dart';
+import 'grupo_controller.dart';
+
+/// Estado de la sesión activa (usuario y grupo), observable por las vistas.
+class SesionState extends ChangeNotifier {
+  SesionState({
+    AuthController? authController,
+    GrupoController? grupoController,
+    SesionRepository? sesionRepository,
+  }) : _authController = authController ?? AuthController(),
+       _grupoController = grupoController ?? GrupoController(),
+       _sesionRepository = sesionRepository ?? SesionRepository();
+
+  static final SesionState instancia = SesionState();
+
+  final AuthController _authController;
+  final GrupoController _grupoController;
+  final SesionRepository _sesionRepository;
+
+  Usuario? usuario;
+  GrupoFamiliar? grupo;
+
+  /// Carga la sesión guardada (si existe) al abrir la app.
+  Future<void> cargar() async {
+    final usuarioId = await _sesionRepository.obtener();
+    if (usuarioId == null) return;
+
+    usuario = await _authController.obtenerPorId(usuarioId);
+    if (usuario == null) return;
+
+    grupo = await _grupoController.obtenerGrupoDeUsuario(usuarioId);
+    notifyListeners();
+  }
+
+  Future<void> iniciarSesion(Usuario nuevoUsuario) async {
+    usuario = nuevoUsuario;
+    await _sesionRepository.guardar(nuevoUsuario.id);
+    grupo = await _grupoController.obtenerGrupoDeUsuario(nuevoUsuario.id);
+    notifyListeners();
+  }
+
+  void establecerGrupo(GrupoFamiliar nuevoGrupo) {
+    grupo = nuevoGrupo;
+    notifyListeners();
+  }
+
+  Future<void> salirDeGrupo() async {
+    final usuarioActual = usuario;
+    final grupoActual = grupo;
+    if (usuarioActual == null || grupoActual == null) return;
+
+    await _grupoController.salir(
+      grupoId: grupoActual.id,
+      usuarioId: usuarioActual.id,
+    );
+    grupo = null;
+    notifyListeners();
+  }
+
+  Future<void> cerrarSesion() async {
+    usuario = null;
+    grupo = null;
+    await _sesionRepository.limpiar();
+    notifyListeners();
+  }
+}
