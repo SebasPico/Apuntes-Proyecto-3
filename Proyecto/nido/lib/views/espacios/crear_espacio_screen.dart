@@ -17,6 +17,7 @@ class _CrearEspacioScreenState extends State<CrearEspacioScreen> {
   final _nameController = TextEditingController();
   int _selectedColor = 0;
   int _selectedIcon = 0;
+  bool _saving = false;
 
   final _colors = const [
     Color(0xFFE07A5F),
@@ -33,6 +34,13 @@ class _CrearEspacioScreenState extends State<CrearEspacioScreen> {
     Icons.bed_rounded,
     Icons.inventory_2_rounded,
   ];
+  final _iconKeys = const [
+    'kitchen',
+    'bathroom',
+    'laundry',
+    'bedroom',
+    'storage',
+  ];
 
   @override
   void dispose() {
@@ -41,33 +49,47 @@ class _CrearEspacioScreenState extends State<CrearEspacioScreen> {
   }
 
   Future<void> _save() async {
-    final name = _nameController.text.trim().isEmpty
-        ? 'Nuevo espacio'
-        : _nameController.text.trim();
+    final name = _nameController.text.trim();
+    if (name.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Escribe un nombre para el espacio.')),
+      );
+      return;
+    }
 
     final grupo = SesionState.instancia.grupo;
-    if (grupo == null) return;
+    if (grupo == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Primero debes crear o unirte a un grupo.')),
+      );
+      return;
+    }
 
-    final espacio = Espacio(
-      id: DateTime.now().microsecondsSinceEpoch.toString(),
-      nombre: name,
-      colorValue: _colors[_selectedColor].toARGB32(),
-      iconCodePoint: _icons[_selectedIcon].codePoint,
-      grupoId: grupo.id,
-    );
-    await _espacioController.crear(espacio);
-
-    if (!mounted) return;
-    Navigator.of(context).pushReplacement(
-      MaterialPageRoute(
-        builder: (_) => InventarioScreen(
-          espacioId: espacio.id,
-          espacioNombre: name,
-          espacioColor: _colors[_selectedColor],
-          espacioIcono: _icons[_selectedIcon],
+    setState(() => _saving = true);
+    try {
+      final espacio = await _espacioController.crear(
+        Espacio(
+          nombre: name,
+          colorValue: _colors[_selectedColor].toARGB32(),
+          iconKey: _iconKeys[_selectedIcon],
+          grupoId: grupo.id,
         ),
-      ),
-    );
+      );
+
+      if (!mounted) return;
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(
+          builder: (_) => InventarioScreen(espacio: espacio),
+        ),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('No se pudo guardar el espacio: $error')),
+      );
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
   }
 
   @override
@@ -173,8 +195,13 @@ class _CrearEspacioScreenState extends State<CrearEspacioScreen> {
                   ),
                   const SizedBox(height: 34),
                   FilledButton.icon(
-                    onPressed: _save,
-                    icon: const Icon(Icons.check_rounded),
+                    onPressed: _saving ? null : _save,
+                    icon: _saving
+                        ? const SizedBox.square(
+                            dimension: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.check_rounded),
                     label: const Text('Guardar espacio'),
                     style: FilledButton.styleFrom(
                       backgroundColor: const Color(0xFF153A3A),

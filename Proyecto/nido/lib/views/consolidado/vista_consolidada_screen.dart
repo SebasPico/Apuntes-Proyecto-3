@@ -43,7 +43,10 @@ class _VistaConsolidadaScreenState extends State<VistaConsolidadaScreen> {
     final spaces = await _espacioController.listarPorGrupo(grupo.id);
     final groups = <Espacio, List<Producto>>{};
     for (final space in spaces) {
-      groups[space] = await _productoController.listarPorGrupo(space.id);
+      groups[space] = await _productoController.listarPorEspacio(
+        grupoId: grupo.id,
+        espacioId: space.id,
+      );
     }
     if (!mounted) return;
     setState(() {

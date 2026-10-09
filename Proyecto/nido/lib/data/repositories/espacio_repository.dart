@@ -1,27 +1,67 @@
-import 'package:sqflite/sqflite.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
+import '../../domain/repositories/espacio_repository.dart' as domain;
 import '../../models/espacio.dart';
-import '../services/app_database.dart';
 
-class EspacioRepository {
-  EspacioRepository({Future<Database> Function()? db})
-    : _db = db ?? (() => AppDatabase.instancia.db);
+class FirebaseEspacioRepository implements domain.EspacioRepository {
+  FirebaseEspacioRepository({FirebaseFirestore? firestore})
+    : _providedFirestore = firestore;
 
-  final Future<Database> Function() _db;
+  final FirebaseFirestore? _providedFirestore;
+  FirebaseFirestore get _firestore =>
+      _providedFirestore ?? FirebaseFirestore.instance;
 
-  Future<void> crear(Espacio espacio) async {
-    final database = await _db();
-    await database.insert('espacios', espacio.toRow());
+  CollectionReference<Map<String, dynamic>> _spaces(String groupId) =>
+      _firestore.collection('groups').doc(groupId).collection('spaces');
+
+  @override
+  Future<Espacio> crear(Espacio espacio) async {
+    final reference = espacio.id.isEmpty
+        ? _spaces(espacio.grupoId).doc()
+        : _spaces(espacio.grupoId).doc(espacio.id);
+    final saved = espacio.copyWith(id: reference.id);
+    await reference.set({
+      ...saved.toMap(),
+      'createdAt': FieldValue.serverTimestamp(),
+    });
+    return saved;
   }
 
-  Future<List<Espacio>> listarPorGrupo(String grupoId) async {
-    final database = await _db();
-    final rows = await database.query(
-      'espacios',
-      where: 'grupoId = ?',
-      whereArgs: [grupoId],
-      orderBy: 'nombre ASC',
+  @override
+  Stream<List<Espacio>> observarPorGrupo(String grupoId) =>
+      _spaces(grupoId).orderBy('nombre').snapshots().map(
+        (snapshot) => snapshot.docs
+            .map(
+              (doc) => Espacio.fromMap(
+                doc.id,
+                _withDate(doc.data(), 'createdAt'),
+              ),
+            )
+            .toList(growable: false),
+      );
+
+  @override
+  Future<Espacio?> obtenerPorId({
+    required String grupoId,
+    required String espacioId,
+  }) async {
+    final snapshot = await _spaces(grupoId).doc(espacioId).get();
+    final data = snapshot.data();
+    if (!snapshot.exists || data == null) return null;
+    return Espacio.fromMap(
+      snapshot.id,
+      _withDate(data, 'createdAt'),
     );
-    return rows.map(Espacio.fromRow).toList();
+  }
+
+  Map<String, dynamic> _withDate(
+    Map<String, dynamic> data,
+    String field,
+  ) {
+    final value = data[field];
+    return {
+      ...data,
+      if (value is Timestamp) field: value.toDate(),
+    };
   }
 }

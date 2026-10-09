@@ -1,6 +1,5 @@
 import 'package:flutter/foundation.dart';
 
-import '../data/repositories/sesion_repository.dart';
 import '../models/grupo_familiar.dart';
 import '../models/usuario.dart';
 import 'auth_controller.dart';
@@ -11,23 +10,20 @@ class SesionState extends ChangeNotifier {
   SesionState({
     AuthController? authController,
     GrupoController? grupoController,
-    SesionRepository? sesionRepository,
   }) : _authController = authController ?? AuthController(),
-       _grupoController = grupoController ?? GrupoController(),
-       _sesionRepository = sesionRepository ?? SesionRepository();
+       _grupoController = grupoController ?? GrupoController();
 
   static final SesionState instancia = SesionState();
 
   final AuthController _authController;
   final GrupoController _grupoController;
-  final SesionRepository _sesionRepository;
 
   Usuario? usuario;
   GrupoFamiliar? grupo;
 
   /// Carga la sesión guardada (si existe) al abrir la app.
   Future<void> cargar() async {
-    final usuarioId = await _sesionRepository.obtener();
+    final usuarioId = _authController.currentUserId;
     if (usuarioId == null) return;
 
     usuario = await _authController.obtenerPorId(usuarioId);
@@ -39,7 +35,6 @@ class SesionState extends ChangeNotifier {
 
   Future<void> iniciarSesion(Usuario nuevoUsuario) async {
     usuario = nuevoUsuario;
-    await _sesionRepository.guardar(nuevoUsuario.id);
     grupo = await _grupoController.obtenerGrupoDeUsuario(nuevoUsuario.id);
     notifyListeners();
   }
@@ -63,9 +58,9 @@ class SesionState extends ChangeNotifier {
   }
 
   Future<void> cerrarSesion() async {
+    await _authController.cerrarSesion();
     usuario = null;
     grupo = null;
-    await _sesionRepository.limpiar();
     notifyListeners();
   }
 }

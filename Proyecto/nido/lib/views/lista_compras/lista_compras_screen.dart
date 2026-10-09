@@ -35,7 +35,10 @@ class _ListaComprasScreenState extends State<ListaComprasScreen> {
     final espacios = await _espacioController.listarPorGrupo(grupo.id);
     final productos = <Producto>[];
     for (final espacio in espacios) {
-      final items = await _productoController.listarPorGrupo(espacio.id);
+      final items = await _productoController.listarPorEspacio(
+        grupoId: grupo.id,
+        espacioId: espacio.id,
+      );
       productos.addAll(
         items.where((item) => item.cantidad <= item.cantidadMinima),
       );

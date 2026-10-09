@@ -1,29 +1,36 @@
 import 'package:firebase_core/firebase_core.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import 'app.dart';
-import 'services/firebase_connection_test.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-
-  final isMobile = defaultTargetPlatform == TargetPlatform.android ||
-      defaultTargetPlatform == TargetPlatform.iOS;
-
-  if (!kIsWeb && isMobile) {
-    try {
-      await Firebase.initializeApp();
-      final documentId = await FirebaseConnectionTest.writeTestDocument();
-      debugPrint('Firebase conectado. Documento de prueba: test/$documentId');
-    } on FirebaseException catch (error) {
-      debugPrint('Error de Firebase [${error.code}]: ${error.message}');
-    } catch (error) {
-      debugPrint('Error al probar la conexión con Firebase: $error');
-    }
-  } else {
-    debugPrint('Prueba de Firebase omitida: ejecuta la app en Android o iOS.');
+  try {
+    await Firebase.initializeApp();
+    runApp(const NidoApp());
+  } catch (error) {
+    runApp(_FirebaseInitializationError(error: error));
   }
+}
 
-  runApp(const NidoApp());
+class _FirebaseInitializationError extends StatelessWidget {
+  const _FirebaseInitializationError({required this.error});
+
+  final Object error;
+
+  @override
+  Widget build(BuildContext context) => MaterialApp(
+    home: Scaffold(
+      body: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: SelectableText(
+            'No se pudo inicializar Firebase. Verifica la configuración de '
+            'Firebase para esta plataforma y vuelve a iniciar la app.\n\n$error',
+            textAlign: TextAlign.center,
+          ),
+        ),
+      ),
+    ),
+  );
 }

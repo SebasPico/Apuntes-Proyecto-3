@@ -1,15 +1,18 @@
 import 'package:flutter/material.dart';
 
+import '../../controllers/sesion_state.dart';
 import '../../models/producto.dart';
 
 class ProductoFormScreen extends StatefulWidget {
   const ProductoFormScreen({
     super.key,
     this.product,
-    this.espacioId = 'demo-group',
+    required this.grupoId,
+    required this.espacioId,
   });
 
   final Producto? product;
+  final String grupoId;
   final String espacioId;
 
   @override
@@ -17,6 +20,7 @@ class ProductoFormScreen extends StatefulWidget {
 }
 
 class _ProductoFormScreenState extends State<ProductoFormScreen> {
+  final _formKey = GlobalKey<FormState>();
   late final TextEditingController _nombreController;
   late final TextEditingController _cantidadController;
   late final TextEditingController _minimoController;
@@ -47,37 +51,38 @@ class _ProductoFormScreenState extends State<ProductoFormScreen> {
   }
 
   void _guardarProducto() {
-    final nombre = _nombreController.text.trim();
-    final cantidad = int.tryParse(_cantidadController.text.trim()) ?? 0;
-    final cantidadMinima = int.tryParse(_minimoController.text.trim()) ?? 0;
-    if (nombre.isEmpty) {
+    if (!_formKey.currentState!.validate()) return;
+    final cantidad = int.parse(_cantidadController.text.trim());
+    final cantidadMinima = int.parse(_minimoController.text.trim());
+    final userId = SesionState.instancia.usuario?.id;
+    if (userId == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Escribe un nombre para el producto.')),
+        const SnackBar(content: Text('Inicia sesión para editar el inventario.')),
       );
       return;
     }
 
-    final producto = (widget.product ?? Producto(
-      id: DateTime.now().microsecondsSinceEpoch.toString(),
-      nombre: nombre,
-      categoria: 'General',
+    final product = widget.product;
+    final producto = Producto(
+      id: product?.id ?? '',
+      nombre: _nombreController.text.trim(),
+      categoria: product?.categoria ?? 'General',
       cantidad: cantidad,
       cantidadMinima: cantidadMinima,
       unidad: _unit,
       prioridad: _priority,
-      estado: cantidad <= cantidadMinima ? 'Por revisar' : 'Disponible',
-      grupoId: widget.espacioId,
-      creadoPor: 'demo-user',
-    )).copyWith(
-      nombre: nombre,
-      cantidad: cantidad,
-      cantidadMinima: cantidadMinima,
-      unidad: _unit,
-      prioridad: _priority,
-      estado: cantidad <= cantidadMinima ? 'Por revisar' : 'Disponible',
+      grupoId: widget.grupoId,
+      espacioId: widget.espacioId,
+      creadoPor: product?.creadoPor ?? userId,
     );
-
     Navigator.of(context).pop(producto);
+  }
+
+  String? _validarCantidad(String? value) {
+    final parsed = int.tryParse(value?.trim() ?? '');
+    if (parsed == null) return 'Ingresa una cantidad entera';
+    if (parsed < 0) return 'La cantidad no puede ser negativa';
+    return null;
   }
 
   @override
@@ -93,104 +98,131 @@ class _ProductoFormScreenState extends State<ProductoFormScreen> {
         child: Center(
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 460),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Text(
-                  editing ? 'Actualiza los datos' : 'Agrega algo nuevo',
-                  style: const TextStyle(
-                    color: Color(0xFF153A3A),
-                    fontSize: 24,
-                    fontWeight: FontWeight.w800,
+            child: Form(
+              key: _formKey,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Text(
+                    editing ? 'Actualiza los datos' : 'Agrega algo nuevo',
+                    style: const TextStyle(
+                      color: Color(0xFF153A3A),
+                      fontSize: 24,
+                      fontWeight: FontWeight.w800,
+                    ),
                   ),
-                ),
-                const SizedBox(height: 8),
-                const Text(
-                  'Define cuándo debe aparecer en tu lista de compras.',
-                  style: TextStyle(color: Color(0xFF6E756D)),
-                ),
-                const SizedBox(height: 28),
-                TextField(
-                  controller: _nombreController,
-                  decoration: const InputDecoration(
-                    labelText: 'Nombre del producto',
-                    hintText: 'Ej. Papel higiénico',
-                    prefixIcon: Icon(Icons.inventory_2_outlined),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'Define cuándo debe aparecer en tu lista de compras.',
+                    style: TextStyle(color: Color(0xFF6E756D)),
                   ),
-                ),
-                const SizedBox(height: 16),
-                Row(
-                  children: [
-                    Expanded(
-                      child: TextField(
-                        controller: _cantidadController,
-                        keyboardType: TextInputType.number,
-                        decoration: InputDecoration(
-                          labelText: 'Cantidad actual',
-                          prefixIcon: Icon(Icons.numbers_rounded),
+                  const SizedBox(height: 28),
+                  TextFormField(
+                    controller: _nombreController,
+                    textCapitalization: TextCapitalization.sentences,
+                    decoration: const InputDecoration(
+                      labelText: 'Nombre del producto',
+                      hintText: 'Ej. Papel higiénico',
+                      prefixIcon: Icon(Icons.inventory_2_outlined),
+                    ),
+                    validator: (value) {
+                      if (value == null || value.trim().isEmpty) {
+                        return 'El nombre del producto es obligatorio';
+                      }
+                      if (value.trim().length > 80) {
+                        return 'El nombre no puede superar 80 caracteres';
+                      }
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 16),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextFormField(
+                          controller: _cantidadController,
+                          keyboardType: TextInputType.number,
+                          decoration: const InputDecoration(
+                            labelText: 'Cantidad actual',
+                            prefixIcon: Icon(Icons.numbers_rounded),
+                          ),
+                          validator: _validarCantidad,
                         ),
                       ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: DropdownButtonFormField<String>(
+                          initialValue: _unit,
+                          decoration: const InputDecoration(labelText: 'Unidad'),
+                          items: const [
+                            'Unidades',
+                            'Rollos',
+                            'Litros',
+                            'Kg',
+                            'Gramos',
+                          ]
+                              .map(
+                                (unit) => DropdownMenuItem(
+                                  value: unit,
+                                  child: Text(unit),
+                                ),
+                              )
+                              .toList(),
+                          onChanged: (value) {
+                            if (value != null) setState(() => _unit = value);
+                          },
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  TextFormField(
+                    controller: _minimoController,
+                    keyboardType: TextInputType.number,
+                    decoration: const InputDecoration(
+                      labelText: 'Cantidad mínima',
+                      helperText: 'Al llegar a este número se genera una alerta.',
+                      prefixIcon: Icon(Icons.warning_amber_outlined),
                     ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: DropdownButtonFormField<String>(
-                        initialValue: _unit,
-                        decoration: const InputDecoration(labelText: 'Unidad'),
-                        items: const ['Unidades', 'Rollos', 'Litros', 'Kg', 'Gramos']
-                            .map((unit) => DropdownMenuItem(value: unit, child: Text(unit)))
-                            .toList(),
-                        onChanged: (value) => setState(() => _unit = value!),
+                    validator: _validarCantidad,
+                  ),
+                  const SizedBox(height: 24),
+                  const Text(
+                    'Prioridad de compra',
+                    style: TextStyle(
+                      color: Color(0xFF153A3A),
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  SegmentedButton<String>(
+                    segments: const [
+                      ButtonSegment(value: 'Alta', label: Text('Alta')),
+                      ButtonSegment(value: 'Media', label: Text('Media')),
+                      ButtonSegment(value: 'Baja', label: Text('Baja')),
+                    ],
+                    selected: {_priority},
+                    onSelectionChanged: (value) =>
+                        setState(() => _priority = value.first),
+                  ),
+                  const SizedBox(height: 32),
+                  FilledButton.icon(
+                    onPressed: _guardarProducto,
+                    icon: const Icon(Icons.check_rounded),
+                    label: Text(
+                      editing ? 'Guardar cambios' : 'Agregar producto',
+                    ),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: const Color(0xFF153A3A),
+                      foregroundColor: Colors.white,
+                      minimumSize: const Size.fromHeight(56),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
                       ),
                     ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                TextField(
-                  controller: _minimoController,
-                  keyboardType: TextInputType.number,
-                  decoration: InputDecoration(
-                    labelText: 'Cantidad mínima',
-                    helperText: 'Al llegar a este número se genera una alerta.',
-                    prefixIcon: Icon(Icons.warning_amber_outlined),
                   ),
-                ),
-                const SizedBox(height: 24),
-                const Text(
-                  'Prioridad de compra',
-                  style: TextStyle(color: Color(0xFF153A3A), fontWeight: FontWeight.w700),
-                ),
-                const SizedBox(height: 10),
-                SegmentedButton<String>(
-                  segments: const [
-                    ButtonSegment(value: 'Alta', label: Text('Alta')),
-                    ButtonSegment(value: 'Media', label: Text('Media')),
-                    ButtonSegment(value: 'Baja', label: Text('Baja')),
-                  ],
-                  selected: {_priority},
-                  onSelectionChanged: (value) => setState(() => _priority = value.first),
-                ),
-                const SizedBox(height: 32),
-                FilledButton.icon(
-                  onPressed: _guardarProducto,
-                  icon: const Icon(Icons.check_rounded),
-                  label: Text(editing ? 'Guardar cambios' : 'Agregar producto'),
-                  style: FilledButton.styleFrom(
-                    backgroundColor: const Color(0xFF153A3A),
-                    foregroundColor: Colors.white,
-                    minimumSize: const Size.fromHeight(56),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                  ),
-                ),
-                if (editing)
-                  TextButton.icon(
-                    onPressed: () {
-                      Navigator.of(context).pop<Producto>(widget.product);
-                    },
-                    icon: const Icon(Icons.delete_outline_rounded),
-                    label: const Text('Eliminar producto'),
-                    style: TextButton.styleFrom(foregroundColor: const Color(0xFFB65A43)),
-                  ),
-              ],
+                ],
+              ),
             ),
           ),
         ),

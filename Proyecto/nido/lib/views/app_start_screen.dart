@@ -14,6 +14,8 @@ class AppStartScreen extends StatefulWidget {
 }
 
 class _AppStartScreenState extends State<AppStartScreen> {
+  String? _error;
+
   @override
   void initState() {
     super.initState();
@@ -23,8 +25,9 @@ class _AppStartScreenState extends State<AppStartScreen> {
   Future<void> _redirigir() async {
     try {
       await SesionState.instancia.cargar();
-    } catch (_) {
-      // Si falla la carga, se continúa sin sesión activa.
+    } catch (error) {
+      if (mounted) setState(() => _error = error.toString());
+      return;
     }
 
     if (!mounted) return;
@@ -49,6 +52,39 @@ class _AppStartScreenState extends State<AppStartScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final error = _error;
+    if (error != null) {
+      return Scaffold(
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.cloud_off_outlined, size: 48),
+                const SizedBox(height: 16),
+                const Text(
+                  'No se pudo cargar tu sesión de Firebase.',
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 8),
+                SelectableText(error, textAlign: TextAlign.center),
+                const SizedBox(height: 20),
+                FilledButton(
+                  onPressed: () => setState(() {
+                    _error = null;
+                    WidgetsBinding.instance.addPostFrameCallback(
+                      (_) => _redirigir(),
+                    );
+                  }),
+                  child: const Text('Reintentar'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
     return const Scaffold(body: Center(child: CircularProgressIndicator()));
   }
 }

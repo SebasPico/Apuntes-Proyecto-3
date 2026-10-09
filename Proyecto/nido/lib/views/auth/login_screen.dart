@@ -55,6 +55,7 @@ class _LoginScreenState extends State<LoginScreen> {
         (_) => false,
       );
     } catch (error) {
+      if (!mounted) return;
       setState(() {
         _errorGeneral = error.toString().replaceFirst('Exception: ', '');
       });
@@ -115,9 +116,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   TextFormField(
                     controller: _passwordController,
                     obscureText: _obscurePassword,
-                    validator: (value) => (value == null || value.isEmpty)
-                        ? 'La contraseña es obligatoria'
-                        : null,
+                    validator: Validators.password,
                     decoration: InputDecoration(
                       labelText: 'Contraseña',
                       prefixIcon: const Icon(Icons.lock_outline_rounded),

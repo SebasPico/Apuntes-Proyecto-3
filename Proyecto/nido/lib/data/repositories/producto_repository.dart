@@ -1,46 +1,113 @@
-import 'package:sqflite/sqflite.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
+import '../../domain/repositories/producto_repository.dart' as domain;
 import '../../models/producto.dart';
-import '../services/app_database.dart';
 
-class ProductoRepository {
-  ProductoRepository({Future<Database> Function()? db})
-      : _db = db ?? (() => AppDatabase.instancia.db);
+class FirebaseProductoRepository implements domain.ProductoRepository {
+  FirebaseProductoRepository({FirebaseFirestore? firestore})
+    : _providedFirestore = firestore;
 
-  final Future<Database> Function() _db;
+  final FirebaseFirestore? _providedFirestore;
+  FirebaseFirestore get _firestore =>
+      _providedFirestore ?? FirebaseFirestore.instance;
 
-  Future<void> crear(Producto producto) async {
-    final db = await _db();
-    await db.insert('productos', producto.toRow());
+  CollectionReference<Map<String, dynamic>> _products({
+    required String groupId,
+    required String spaceId,
+  }) => _firestore
+      .collection('groups')
+      .doc(groupId)
+      .collection('spaces')
+      .doc(spaceId)
+      .collection('products');
+
+  @override
+  Future<Producto> crear(Producto producto) async {
+    final reference = _products(
+      groupId: producto.grupoId,
+      spaceId: producto.espacioId,
+    ).doc();
+    final saved = producto.copyWith(id: reference.id);
+    await reference.set({
+      ...saved.toMap(),
+      'fechaActualizacion': FieldValue.serverTimestamp(),
+    });
+    return saved;
   }
 
-  Future<List<Producto>> listarPorGrupo(String grupoId) async {
-    final db = await _db();
-    final filas = await db.query(
-      'productos',
-      where: 'grupoId = ?',
-      whereArgs: [grupoId],
-      orderBy: 'nombre ASC',
-    );
-    return filas.map(Producto.fromRow).toList();
+  @override
+  Future<List<Producto>> listarPorEspacio({
+    required String grupoId,
+    required String espacioId,
+  }) async {
+    final snapshot = await _products(
+      groupId: grupoId,
+      spaceId: espacioId,
+    ).orderBy('nombre').get();
+    return snapshot.docs
+        .map(
+          (doc) => Producto.fromMap(
+            doc.id,
+            _withDate(doc.data(), 'fechaActualizacion'),
+          ),
+        )
+        .toList(growable: false);
   }
 
+  @override
+  Stream<List<Producto>> observarPorEspacio({
+    required String grupoId,
+    required String espacioId,
+  }) => _products(groupId: grupoId, spaceId: espacioId)
+      .orderBy('nombre')
+      .snapshots()
+      .map(
+        (snapshot) => snapshot.docs
+            .map(
+              (doc) => Producto.fromMap(
+                doc.id,
+                _withDate(doc.data(), 'fechaActualizacion'),
+              ),
+            )
+            .toList(growable: false),
+      );
+
+  @override
   Future<void> actualizar(Producto producto) async {
-    final db = await _db();
-    await db.update(
-      'productos',
-      producto.toRow(),
-      where: 'id = ?',
-      whereArgs: [producto.id],
-    );
+    final reference = _products(
+      groupId: producto.grupoId,
+      spaceId: producto.espacioId,
+    ).doc(producto.id);
+    await reference.update({
+      ...producto.toMap(),
+      'fechaActualizacion': FieldValue.serverTimestamp(),
+    });
   }
 
-  Future<void> eliminar(String productoId) async {
-    final db = await _db();
-    await db.delete(
-      'productos',
-      where: 'id = ?',
-      whereArgs: [productoId],
-    );
+  @override
+  Future<void> ajustarCantidad({
+    required Producto producto,
+    required int cambio,
+  }) async {
+    if (cambio == 0) return;
+    final reference = _products(
+      groupId: producto.grupoId,
+      spaceId: producto.espacioId,
+    ).doc(producto.id);
+    await reference.update({
+      'cantidad': FieldValue.increment(cambio),
+      'fechaActualizacion': FieldValue.serverTimestamp(),
+    });
+  }
+
+  @override
+  Future<void> eliminar(Producto producto) => _products(
+    groupId: producto.grupoId,
+    spaceId: producto.espacioId,
+  ).doc(producto.id).delete();
+
+  Map<String, dynamic> _withDate(Map<String, dynamic> data, String field) {
+    final value = data[field];
+    return {...data, if (value is Timestamp) field: value.toDate()};
   }
 }

@@ -1,28 +1,33 @@
-/// Representa un usuario registrado en la app.
+/// Usuario autenticado por Firebase Authentication.
 class Usuario {
-  Usuario({
+  const Usuario({
     required this.id,
     required this.nombreCompleto,
     required this.email,
-    required this.passwordHash,
+    this.createdAt,
   });
 
   final String id;
   final String nombreCompleto;
   final String email;
-  final String passwordHash;
+  final DateTime? createdAt;
 
-  Map<String, Object?> toRow() => {
-    'id': id,
+  Map<String, Object?> toMap() => {
     'nombreCompleto': nombreCompleto,
     'email': email,
-    'passwordHash': passwordHash,
+    'createdAt': createdAt,
   };
 
-  factory Usuario.fromRow(Map<String, Object?> fila) => Usuario(
-    id: fila['id'] as String,
-    nombreCompleto: fila['nombreCompleto'] as String,
-    email: fila['email'] as String,
-    passwordHash: fila['passwordHash'] as String,
+  factory Usuario.fromMap(String id, Map<String, dynamic> map) => Usuario(
+    id: id,
+    nombreCompleto: map['nombreCompleto'] as String? ?? '',
+    email: map['email'] as String? ?? '',
+    createdAt: _dateFromMap(map['createdAt']),
   );
+}
+
+DateTime? _dateFromMap(Object? value) {
+  if (value is DateTime) return value;
+  if (value is String) return DateTime.tryParse(value);
+  return null;
 }

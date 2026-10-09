@@ -2,23 +2,15 @@ import 'package:flutter/material.dart';
 
 import '../../controllers/producto_controller.dart';
 import '../../models/producto.dart';
-import '../espacios/crear_espacio_screen.dart';
+import '../../models/espacio.dart';
+import '../../utils/espacio_icons.dart';
 import '../espacios/detalle_espacio_screen.dart';
 import 'producto_form_screen.dart';
 
 class InventarioScreen extends StatefulWidget {
-  const InventarioScreen({
-    super.key,
-    this.espacioId = 'demo-group',
-    required this.espacioNombre,
-    required this.espacioColor,
-    required this.espacioIcono,
-  });
+  const InventarioScreen({super.key, required this.espacio});
 
-  final String espacioId;
-  final String espacioNombre;
-  final Color espacioColor;
-  final IconData espacioIcono;
+  final Espacio espacio;
 
   @override
   State<InventarioScreen> createState() => _InventarioScreenState();
@@ -27,65 +19,75 @@ class InventarioScreen extends StatefulWidget {
 class _InventarioScreenState extends State<InventarioScreen> {
   final _controller = ProductoController();
   String _search = '';
-  List<Producto> _products = [];
-  bool _cargando = true;
 
-  @override
-  void initState() {
-    super.initState();
-    _cargarProductos();
-  }
-
-  Future<void> _cargarProductos() async {
-    final productos = await _controller.listarPorGrupo(widget.espacioId);
-    if (!mounted) return;
-    setState(() {
-      _products = productos;
-      _cargando = false;
+  Future<void> _agregarProducto(Producto producto) async {
+    await _ejecutar(() async {
+      await _controller.crear(producto);
     });
   }
 
-  Future<void> _agregarProducto(Producto producto) async {
-    final existentes = await _controller.listarPorGrupo(widget.espacioId);
-    final existente = existentes.where(
-      (item) => item.nombre.trim().toLowerCase() == producto.nombre.trim().toLowerCase(),
-    ).firstOrNull;
+  Future<void> _actualizarProducto(Producto producto) async {
+    await _ejecutar(() => _controller.actualizar(producto));
+  }
 
-    if (existente == null) {
-      await _controller.crear(producto);
-    } else {
-      await _controller.actualizar(
-        existente.copyWith(
-          cantidad: existente.cantidad + producto.cantidad,
-          cantidadMinima: producto.cantidadMinima,
-          unidad: producto.unidad,
-          prioridad: producto.prioridad,
-          estado: existente.cantidad + producto.cantidad <= producto.cantidadMinima
-              ? 'Por revisar'
-              : 'Disponible',
-        ),
+  Future<void> _eliminarProducto(Producto producto) async {
+    await _ejecutar(() => _controller.eliminar(producto));
+  }
+
+  Future<void> _ajustarCantidad(Producto producto, int cambio) async {
+    await _ejecutar(
+      () => _controller.ajustarCantidad(producto: producto, cambio: cambio),
+    );
+  }
+
+  Future<void> _ejecutar(Future<void> Function() action) async {
+    try {
+      await action();
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('No se pudo actualizar el inventario: $error')),
       );
     }
-    await _cargarProductos();
-  }
-
-  Future<void> _actualizarProducto(Producto producto) async {
-    await _controller.actualizar(producto);
-    await _cargarProductos();
-  }
-
-  Future<void> _eliminarProducto(String id) async {
-    await _controller.eliminar(id);
-    await _cargarProductos();
   }
 
   @override
   Widget build(BuildContext context) {
-    final filteredProducts = _products
+    return StreamBuilder<List<Producto>>(
+      stream: _controller.observarPorEspacio(
+        grupoId: widget.espacio.grupoId,
+        espacioId: widget.espacio.id,
+      ),
+      builder: (context, snapshot) {
+        if (snapshot.hasError) {
+          return Scaffold(
+            appBar: AppBar(title: Text(widget.espacio.nombre)),
+            body: Center(
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Text(
+                  'No se pudo sincronizar el inventario: ${snapshot.error}',
+                  textAlign: TextAlign.center,
+                ),
+              ),
+            ),
+          );
+        }
+        if (!snapshot.hasData) {
+          return const Scaffold(
+            body: Center(child: CircularProgressIndicator()),
+          );
+        }
+        return _buildInventory(context, snapshot.data!);
+      },
+    );
+  }
+
+  Widget _buildInventory(BuildContext context, List<Producto> products) {
+    final filteredProducts = products
         .where(
-          (product) => product.nombre.toLowerCase().contains(
-            _search.toLowerCase(),
-          ),
+          (product) =>
+              product.nombre.toLowerCase().contains(_search.toLowerCase()),
         )
         .toList();
 
@@ -95,11 +97,11 @@ class _InventarioScreenState extends State<InventarioScreen> {
           SliverAppBar(
             expandedHeight: 194,
             pinned: true,
-            backgroundColor: widget.espacioColor,
+            backgroundColor: Color(widget.espacio.colorValue),
             foregroundColor: Colors.white,
             flexibleSpace: FlexibleSpaceBar(
               titlePadding: const EdgeInsets.fromLTRB(24, 0, 24, 16),
-              title: Text(widget.espacioNombre),
+              title: Text(widget.espacio.nombre),
               background: Padding(
                 padding: const EdgeInsets.fromLTRB(24, 76, 24, 46),
                 child: Align(
@@ -111,7 +113,10 @@ class _InventarioScreenState extends State<InventarioScreen> {
                       color: Colors.white.withValues(alpha: 0.22),
                       borderRadius: BorderRadius.circular(18),
                     ),
-                    child: Icon(widget.espacioIcono, size: 32),
+                    child: Icon(
+                      EspacioIcons.forKey(widget.espacio.iconKey),
+                      size: 32,
+                    ),
                   ),
                 ),
               ),
@@ -121,23 +126,11 @@ class _InventarioScreenState extends State<InventarioScreen> {
                 tooltip: 'Ver código QR',
                 onPressed: () => Navigator.of(context).push(
                   MaterialPageRoute(
-                    builder: (_) => DetalleEspacioScreen(
-                      nombre: widget.espacioNombre,
-                      color: widget.espacioColor,
-                      icono: widget.espacioIcono,
-                    ),
+                    builder: (_) =>
+                        DetalleEspacioScreen(espacio: widget.espacio),
                   ),
                 ),
                 icon: const Icon(Icons.qr_code_2_rounded),
-              ),
-              IconButton(
-                tooltip: 'Editar espacio',
-                onPressed: () => Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (_) => const CrearEspacioScreen(),
-                  ),
-                ),
-                icon: const Icon(Icons.edit_outlined),
               ),
             ],
           ),
@@ -148,7 +141,7 @@ class _InventarioScreenState extends State<InventarioScreen> {
                 children: [
                   Expanded(
                     child: Text(
-                      '${_products.length} productos',
+                      '${products.length} productos',
                       style: Theme.of(context).textTheme.titleLarge?.copyWith(
                         color: const Color(0xFF153A3A),
                         fontWeight: FontWeight.w800,
@@ -173,16 +166,7 @@ class _InventarioScreenState extends State<InventarioScreen> {
               ),
             ),
           ),
-          if (_cargando)
-            const SliverFillRemaining(
-              hasScrollBody: false,
-              child: Center(
-                child: CircularProgressIndicator(
-                  color: Color(0xFF153A3A),
-                ),
-              ),
-            )
-          else if (filteredProducts.isEmpty)
+          if (filteredProducts.isEmpty)
             const SliverFillRemaining(
               hasScrollBody: false,
               child: _EmptyInventory(),
@@ -198,37 +182,25 @@ class _InventarioScreenState extends State<InventarioScreen> {
                     padding: const EdgeInsets.only(bottom: 12),
                     child: _ProductTile(
                       product: product,
-                      onIncrease: () async {
-                        final updated = product.copyWith(
-                          cantidad: product.cantidad + 1,
-                          estado: product.cantidad + 1 <= product.cantidadMinima
-                              ? 'Por revisar'
-                              : 'Disponible',
-                        );
-                        await _actualizarProducto(updated);
-                      },
-                      onDecrease: () async {
-                        if (product.cantidad <= 0) return;
-                        final updated = product.copyWith(
-                          cantidad: product.cantidad - 1,
-                          estado: product.cantidad - 1 <= product.cantidadMinima
-                              ? 'Por revisar'
-                              : 'Disponible',
-                        );
-                        await _actualizarProducto(updated);
-                      },
+                      onIncrease: () => _ajustarCantidad(product, 1),
+                      onDecrease: () => _ajustarCantidad(product, -1),
                       onEdit: () async {
-                        final result = await Navigator.of(context).push<Producto>(
-                          MaterialPageRoute(
-                            builder: (_) => ProductoFormScreen(product: product),
-                          ),
-                        );
+                        final result = await Navigator.of(context)
+                            .push<Producto>(
+                              MaterialPageRoute(
+                                builder: (_) => ProductoFormScreen(
+                                  product: product,
+                                  grupoId: widget.espacio.grupoId,
+                                  espacioId: widget.espacio.id,
+                                ),
+                              ),
+                            );
                         if (result != null) {
                           await _actualizarProducto(result);
                         }
                       },
                       onDelete: () async {
-                        await _eliminarProducto(product.id);
+                        await _eliminarProducto(product);
                       },
                     ),
                   );
@@ -241,7 +213,10 @@ class _InventarioScreenState extends State<InventarioScreen> {
         onPressed: () async {
           final result = await Navigator.of(context).push<Producto>(
             MaterialPageRoute(
-              builder: (_) => ProductoFormScreen(espacioId: widget.espacioId),
+              builder: (_) => ProductoFormScreen(
+                grupoId: widget.espacio.grupoId,
+                espacioId: widget.espacio.id,
+              ),
             ),
           );
           if (result != null) {
@@ -324,10 +299,7 @@ class _ProductTile extends StatelessWidget {
                 Wrap(
                   spacing: 8,
                   children: [
-                    _SmallTag(
-                      label: product.prioridad,
-                      color: priorityColor,
-                    ),
+                    _SmallTag(label: product.prioridad, color: priorityColor),
                     if (needsAttention)
                       _SmallTag(
                         label: product.estado,
@@ -348,7 +320,9 @@ class _ProductTile extends StatelessWidget {
               ),
               IconButton(
                 tooltip: 'Reducir cantidad',
-                onPressed: () async => onDecrease(),
+                onPressed: product.cantidad <= 0
+                    ? null
+                    : () async => onDecrease(),
                 icon: const Icon(Icons.remove_circle_outline_rounded),
                 color: const Color(0xFF6E756D),
               ),

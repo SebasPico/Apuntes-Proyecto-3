@@ -7,8 +7,8 @@ class Producto {
     required this.cantidadMinima,
     required this.unidad,
     required this.prioridad,
-    required this.estado,
     required this.grupoId,
+    required this.espacioId,
     required this.creadoPor,
     DateTime? fechaActualizacion,
   }) : fechaActualizacion = fechaActualizacion ?? DateTime.now();
@@ -20,10 +20,13 @@ class Producto {
   final int cantidadMinima;
   final String unidad;
   final String prioridad;
-  final String estado;
   final String grupoId;
+  final String espacioId;
   final String creadoPor;
   final DateTime fechaActualizacion;
+
+  String get estado =>
+      cantidad <= cantidadMinima ? 'Por revisar' : 'Disponible';
 
   Producto copyWith({
     String? id,
@@ -33,54 +36,54 @@ class Producto {
     int? cantidadMinima,
     String? unidad,
     String? prioridad,
-    String? estado,
     String? grupoId,
+    String? espacioId,
     String? creadoPor,
     DateTime? fechaActualizacion,
-  }) {
-    return Producto(
-      id: id ?? this.id,
-      nombre: nombre ?? this.nombre,
-      categoria: categoria ?? this.categoria,
-      cantidad: cantidad ?? this.cantidad,
-      cantidadMinima: cantidadMinima ?? this.cantidadMinima,
-      unidad: unidad ?? this.unidad,
-      prioridad: prioridad ?? this.prioridad,
-      estado: estado ?? this.estado,
-      grupoId: grupoId ?? this.grupoId,
-      creadoPor: creadoPor ?? this.creadoPor,
-      fechaActualizacion: fechaActualizacion ?? this.fechaActualizacion,
-    );
-  }
+  }) => Producto(
+    id: id ?? this.id,
+    nombre: nombre ?? this.nombre,
+    categoria: categoria ?? this.categoria,
+    cantidad: cantidad ?? this.cantidad,
+    cantidadMinima: cantidadMinima ?? this.cantidadMinima,
+    unidad: unidad ?? this.unidad,
+    prioridad: prioridad ?? this.prioridad,
+    grupoId: grupoId ?? this.grupoId,
+    espacioId: espacioId ?? this.espacioId,
+    creadoPor: creadoPor ?? this.creadoPor,
+    fechaActualizacion: fechaActualizacion ?? DateTime.now(),
+  );
 
-  Map<String, Object?> toRow() => {
-    'id': id,
+  Map<String, Object?> toMap() => {
     'nombre': nombre,
     'categoria': categoria,
     'cantidad': cantidad,
     'cantidadMinima': cantidadMinima,
     'unidad': unidad,
     'prioridad': prioridad,
-    'estado': estado,
     'grupoId': grupoId,
+    'espacioId': espacioId,
     'creadoPor': creadoPor,
-    'fechaActualizacion': fechaActualizacion.toIso8601String(),
+    'fechaActualizacion': fechaActualizacion,
   };
 
-  factory Producto.fromRow(Map<String, Object?> row) {
+  factory Producto.fromMap(String id, Map<String, dynamic> map) {
+    final updatedAt = map['fechaActualizacion'];
     return Producto(
-      id: row['id'] as String? ?? '',
-      nombre: row['nombre'] as String? ?? '',
-      categoria: row['categoria'] as String? ?? 'General',
-      cantidad: row['cantidad'] as int? ?? 0,
-      cantidadMinima: row['cantidadMinima'] as int? ?? 0,
-      unidad: row['unidad'] as String? ?? 'Unidades',
-      prioridad: row['prioridad'] as String? ?? 'Media',
-      estado: row['estado'] as String? ?? 'Disponible',
-      grupoId: row['grupoId'] as String? ?? '',
-      creadoPor: row['creadoPor'] as String? ?? '',
-      fechaActualizacion: row['fechaActualizacion'] != null
-          ? DateTime.parse(row['fechaActualizacion'] as String)
+      id: id,
+      nombre: map['nombre'] as String? ?? '',
+      categoria: map['categoria'] as String? ?? 'General',
+      cantidad: (map['cantidad'] as num?)?.toInt() ?? 0,
+      cantidadMinima: (map['cantidadMinima'] as num?)?.toInt() ?? 0,
+      unidad: map['unidad'] as String? ?? 'Unidades',
+      prioridad: map['prioridad'] as String? ?? 'Media',
+      grupoId: map['grupoId'] as String? ?? '',
+      espacioId: map['espacioId'] as String? ?? '',
+      creadoPor: map['creadoPor'] as String? ?? '',
+      fechaActualizacion: updatedAt is DateTime
+          ? updatedAt
+          : updatedAt is String
+          ? DateTime.tryParse(updatedAt) ?? DateTime.now()
           : DateTime.now(),
     );
   }

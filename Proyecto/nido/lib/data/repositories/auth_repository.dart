@@ -1,74 +1,152 @@
-import 'dart:convert';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart' as firebase_auth;
 
-import 'package:crypto/crypto.dart';
-import 'package:sqflite/sqflite.dart';
-
+import '../../domain/repositories/auth_repository.dart' as domain;
 import '../../models/usuario.dart';
-import '../services/app_database.dart';
 
-/// Se lanza cuando ya existe un usuario registrado con ese correo.
-class EmailYaRegistradoException implements Exception {}
+class FirebaseAuthRepository implements domain.AuthRepository {
+  FirebaseAuthRepository({
+    firebase_auth.FirebaseAuth? auth,
+    FirebaseFirestore? firestore,
+  }) : _providedAuth = auth,
+       _providedFirestore = firestore;
 
-/// Se lanza cuando el correo o la contraseña no coinciden con ningún usuario.
-class CredencialesInvalidasException implements Exception {}
+  final firebase_auth.FirebaseAuth? _providedAuth;
+  final FirebaseFirestore? _providedFirestore;
+  firebase_auth.FirebaseAuth get _auth =>
+      _providedAuth ?? firebase_auth.FirebaseAuth.instance;
+  FirebaseFirestore get _firestore =>
+      _providedFirestore ?? FirebaseFirestore.instance;
 
-/// Repositorio de usuarios, persistido en SQLite (ver [AppDatabase]).
-class AuthRepository {
-  AuthRepository({Future<Database> Function()? db})
-    : _db = db ?? (() => AppDatabase.instancia.db);
+  CollectionReference<Map<String, dynamic>> get _users =>
+      _firestore.collection('users');
 
-  final Future<Database> Function() _db;
+  @override
+  String? get currentUserId => _auth.currentUser?.uid;
 
-  String _hashPassword(String password) {
-    return sha256.convert(utf8.encode(password)).toString();
-  }
-
-  Future<Usuario> crearUsuario({
+  @override
+  Future<Usuario> registrar({
     required String nombreCompleto,
     required String email,
     required String password,
   }) async {
-    final db = await _db();
-    final emailNormalizado = email.trim().toLowerCase();
-
-    final existentes = await db.query(
-      'usuarios',
-      where: 'email = ?',
-      whereArgs: [emailNormalizado],
-    );
-    if (existentes.isNotEmpty) throw EmailYaRegistradoException();
-
-    final usuario = Usuario(
-      id: DateTime.now().microsecondsSinceEpoch.toString(),
-      nombreCompleto: nombreCompleto.trim(),
-      email: emailNormalizado,
-      passwordHash: _hashPassword(password),
-    );
-    await db.insert('usuarios', usuario.toRow());
-    return usuario;
+    try {
+      final credential = await _auth.createUserWithEmailAndPassword(
+        email: email.trim().toLowerCase(),
+        password: password,
+      );
+      final user = credential.user;
+      if (user == null) {
+        throw StateError('Firebase Authentication no devolvió un usuario.');
+      }
+      final profile = Usuario(
+        id: user.uid,
+        nombreCompleto: nombreCompleto.trim(),
+        email: user.email ?? email.trim().toLowerCase(),
+        createdAt: DateTime.now(),
+      );
+      await _users.doc(user.uid).set({
+        ...profile.toMap(),
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+      return profile;
+    } on firebase_auth.FirebaseAuthException catch (error) {
+      throw _authError(error);
+    }
   }
 
-  Future<Usuario> validarCredenciales({
+  @override
+  Future<Usuario> iniciarSesion({
     required String email,
     required String password,
   }) async {
-    final db = await _db();
-    final emailNormalizado = email.trim().toLowerCase();
-    final passwordHash = _hashPassword(password);
+    try {
+      final credential = await _auth.signInWithEmailAndPassword(
+        email: email.trim().toLowerCase(),
+        password: password,
+      );
+      final user = credential.user;
+      if (user == null) {
+        throw StateError('Firebase Authentication no devolvió un usuario.');
+      }
+      final snapshot = await _users.doc(user.uid).get();
+      if (snapshot.exists && snapshot.data() != null) {
+        return Usuario.fromMap(
+          user.uid,
+          _withDate(snapshot.data()!, 'createdAt'),
+        );
+      }
 
-    final filas = await db.query(
-      'usuarios',
-      where: 'email = ? AND passwordHash = ?',
-      whereArgs: [emailNormalizado, passwordHash],
-    );
-    if (filas.isEmpty) throw CredencialesInvalidasException();
-    return Usuario.fromRow(filas.first);
+      final profile = Usuario(
+        id: user.uid,
+        nombreCompleto: user.displayName ?? '',
+        email: user.email ?? email.trim().toLowerCase(),
+        createdAt: DateTime.now(),
+      );
+      await _users.doc(user.uid).set({
+        ...profile.toMap(),
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+      return profile;
+    } on firebase_auth.FirebaseAuthException catch (error) {
+      throw _authError(error);
+    }
   }
 
+  @override
   Future<Usuario?> obtenerPorId(String id) async {
-    final db = await _db();
-    final filas = await db.query('usuarios', where: 'id = ?', whereArgs: [id]);
-    if (filas.isEmpty) return null;
-    return Usuario.fromRow(filas.first);
+    final snapshot = await _users.doc(id).get();
+    final data = snapshot.data();
+    if (snapshot.exists && data != null) {
+      return Usuario.fromMap(id, _withDate(data, 'createdAt'));
+    }
+
+    final user = _auth.currentUser;
+    if (user == null || user.uid != id) return null;
+    final email = user.email ?? '';
+    final profile = Usuario(
+      id: id,
+      nombreCompleto: user.displayName ?? email.split('@').first,
+      email: email,
+      createdAt: DateTime.now(),
+    );
+    await _users.doc(id).set({
+      ...profile.toMap(),
+      'createdAt': FieldValue.serverTimestamp(),
+    });
+    return profile;
+  }
+
+  @override
+  Future<void> cerrarSesion() => _auth.signOut();
+
+  Exception _authError(firebase_auth.FirebaseAuthException error) {
+    return switch (error.code) {
+      'email-already-in-use' => Exception(
+        'Este correo ya está registrado, inicia sesión.',
+      ),
+      'invalid-email' => Exception('El correo electrónico no es válido.'),
+      'weak-password' => Exception(
+        'La contraseña no cumple los requisitos de seguridad.',
+      ),
+      'user-not-found' || 'wrong-password' || 'invalid-credential' => Exception(
+        'Correo o contraseña incorrectos.',
+      ),
+      'network-request-failed' => Exception(
+        'No se pudo conectar. Revisa tu conexión a internet.',
+      ),
+      _ => Exception('No se pudo completar la autenticación (${error.code}).'),
+    };
+  }
+
+  Map<String, dynamic> _withDate(
+    Map<String, dynamic> data,
+    String field,
+  ) {
+    final value = data[field];
+    return {
+      ...data,
+      if (value is Timestamp) field: value.toDate(),
+    };
   }
 }

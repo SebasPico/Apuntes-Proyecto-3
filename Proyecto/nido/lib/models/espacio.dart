@@ -1,31 +1,50 @@
 class Espacio {
   const Espacio({
-    required this.id,
+    this.id = '',
     required this.nombre,
     required this.colorValue,
-    required this.iconCodePoint,
+    required this.iconKey,
     required this.grupoId,
+    this.createdAt,
   });
 
   final String id;
   final String nombre;
   final int colorValue;
-  final int iconCodePoint;
+  final String iconKey;
   final String grupoId;
+  final DateTime? createdAt;
 
-  Map<String, Object?> toRow() => {
-    'id': id,
+  Espacio copyWith({String? id}) => Espacio(
+    id: id ?? this.id,
+    nombre: nombre,
+    colorValue: colorValue,
+    iconKey: iconKey,
+    grupoId: grupoId,
+    createdAt: createdAt,
+  );
+
+  Map<String, Object?> toMap() => {
     'nombre': nombre,
     'colorValue': colorValue,
-    'iconCodePoint': iconCodePoint,
+    'iconKey': iconKey,
     'grupoId': grupoId,
+    'createdAt': createdAt,
   };
 
-  factory Espacio.fromRow(Map<String, Object?> row) => Espacio(
-    id: row['id'] as String,
-    nombre: row['nombre'] as String,
-    colorValue: row['colorValue'] as int,
-    iconCodePoint: row['iconCodePoint'] as int,
-    grupoId: row['grupoId'] as String,
-  );
+  factory Espacio.fromMap(String id, Map<String, dynamic> map) {
+    final createdAt = map['createdAt'];
+    return Espacio(
+      id: id,
+      nombre: map['nombre'] as String? ?? '',
+      colorValue: (map['colorValue'] as num?)?.toInt() ?? 0,
+      iconKey: map['iconKey'] as String? ?? 'home',
+      grupoId: map['grupoId'] as String? ?? '',
+      createdAt: createdAt is DateTime
+          ? createdAt
+          : createdAt is String
+          ? DateTime.tryParse(createdAt)
+          : null,
+    );
+  }
 }

@@ -53,6 +53,7 @@ class _RegistroScreenState extends State<RegistroScreen> {
         (_) => false,
       );
     } catch (error) {
+      if (!mounted) return;
       setState(() {
         _errorGeneral = error.toString().replaceFirst('Exception: ', '');
       });
@@ -280,4 +281,3 @@ class _RegistrationFooter extends StatelessWidget {
     );
   }
 }
-

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../controllers/espacio_controller.dart';
 import '../../controllers/sesion_state.dart';
 import '../../models/espacio.dart';
+import '../../utils/espacio_icons.dart';
 import '../espacios/crear_espacio_screen.dart';
 import '../espacios/escanear_qr_screen.dart';
 import '../inventario/inventario_screen.dart';
@@ -108,24 +109,32 @@ class _HomeContent extends StatefulWidget {
 
 class _HomeContentState extends State<_HomeContent> {
   final _espacioController = EspacioController();
-  List<Espacio> _espacios = [];
-
-  @override
-  void initState() {
-    super.initState();
-    _cargarEspacios();
-  }
-
-  Future<void> _cargarEspacios() async {
-    final grupo = SesionState.instancia.grupo;
-    if (grupo == null) return;
-    final espacios = await _espacioController.listarPorGrupo(grupo.id);
-    if (!mounted) return;
-    setState(() => _espacios = espacios);
-  }
 
   @override
   Widget build(BuildContext context) {
+    final grupo = SesionState.instancia.grupo;
+    if (grupo == null) {
+      return const Center(child: Text('Primero crea o únete a un grupo familiar.'));
+    }
+
+    return StreamBuilder<List<Espacio>>(
+      stream: _espacioController.observarPorGrupo(grupo.id),
+      builder: (context, snapshot) {
+        if (snapshot.hasError) {
+          return Center(
+            child: Text('No se pudieron cargar los espacios: ${snapshot.error}'),
+          );
+        }
+        if (!snapshot.hasData) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        final espacios = snapshot.data!;
+        return _buildHome(context, espacios);
+      },
+    );
+  }
+
+  Widget _buildHome(BuildContext context, List<Espacio> espacios) {
     final theme = Theme.of(context);
     final nombre = SesionState.instancia.usuario?.nombreCompleto
         .split(' ')
@@ -206,7 +215,7 @@ class _HomeContentState extends State<_HomeContent> {
                 Row(
                   children: [
                     Text(
-                      '${_espacios.length} ${_espacios.length == 1 ? 'espacio' : 'espacios'}',
+                      '${espacios.length} ${espacios.length == 1 ? 'espacio' : 'espacios'}',
                       style: theme.textTheme.bodySmall?.copyWith(
                         color: const Color(0xFF6E756D),
                       ),
@@ -227,11 +236,11 @@ class _HomeContentState extends State<_HomeContent> {
         SliverPadding(
           padding: const EdgeInsets.fromLTRB(24, 8, 24, 28),
           sliver: SliverToBoxAdapter(
-            child: _espacios.isEmpty
+            child: espacios.isEmpty
                 ? _EmptySpaces(onCreateSpace: widget.onCreateSpace)
                 : Column(
                     children: [
-                      for (final espacio in _espacios)
+                      for (final espacio in espacios)
                         Padding(
                           padding: const EdgeInsets.only(bottom: 12),
                           child: _SpaceTile(
@@ -239,13 +248,7 @@ class _HomeContentState extends State<_HomeContent> {
                             onTap: () => Navigator.of(context).push(
                               MaterialPageRoute(
                                 builder: (_) => InventarioScreen(
-                                  espacioId: espacio.id,
-                                  espacioNombre: espacio.nombre,
-                                  espacioColor: Color(espacio.colorValue),
-                                  espacioIcono: IconData(
-                                    espacio.iconCodePoint,
-                                    fontFamily: 'MaterialIcons',
-                                  ),
+                                  espacio: espacio,
                                 ),
                               ),
                             ),
@@ -280,9 +283,7 @@ class _SpaceTile extends StatelessWidget {
       leading: CircleAvatar(
         backgroundColor: color.withValues(alpha: 0.18),
         foregroundColor: color,
-        child: Icon(
-          IconData(espacio.iconCodePoint, fontFamily: 'MaterialIcons'),
-        ),
+        child: Icon(EspacioIcons.forKey(espacio.iconKey)),
       ),
       title: Text(
         espacio.nombre,
@@ -351,4 +352,3 @@ class _EmptySpaces extends StatelessWidget {
     );
   }
 }
-

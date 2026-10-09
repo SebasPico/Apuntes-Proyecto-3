@@ -1,38 +1,26 @@
 import '../data/repositories/grupo_repository.dart';
+import '../domain/repositories/grupo_repository.dart' as domain;
 import '../models/grupo_familiar.dart';
 
-/// Controlador de grupos familiares: valida datos y coordina con el repositorio.
 class GrupoController {
-  GrupoController({GrupoRepository? repository})
-    : _repository = repository ?? GrupoRepository();
+  GrupoController({domain.GrupoRepository? repository})
+    : _repository = repository ?? FirebaseGrupoRepository();
 
-  final GrupoRepository _repository;
+  final domain.GrupoRepository _repository;
 
   Future<GrupoFamiliar> crear({
     required String nombre,
     required String creadorId,
-  }) {
-    return _repository.crear(nombre: nombre, creadorId: creadorId);
-  }
+  }) => _repository.crear(nombre: nombre, creadorId: creadorId);
 
   Future<GrupoFamiliar> unirse({
     required String codigo,
     required String usuarioId,
-  }) async {
-    try {
-      return await _repository.unirse(codigo: codigo, usuarioId: usuarioId);
-    } on CodigoGrupoInvalidoException {
-      throw Exception(
-        'Código no válido, verifícalo con un integrante de tu hogar.',
-      );
-    }
-  }
+  }) => _repository.unirse(codigo: codigo, usuarioId: usuarioId);
 
-  Future<GrupoFamiliar?> obtenerGrupoDeUsuario(String usuarioId) {
-    return _repository.obtenerGrupoDeUsuario(usuarioId);
-  }
+  Future<GrupoFamiliar?> obtenerGrupoDeUsuario(String usuarioId) =>
+      _repository.obtenerGrupoDeUsuario(usuarioId);
 
-  Future<void> salir({required String grupoId, required String usuarioId}) {
-    return _repository.salir(grupoId: grupoId, usuarioId: usuarioId);
-  }
+  Future<void> salir({required String grupoId, required String usuarioId}) =>
+      _repository.salir(grupoId: grupoId, usuarioId: usuarioId);
 }

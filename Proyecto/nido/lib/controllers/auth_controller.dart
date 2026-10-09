@@ -1,44 +1,31 @@
 import '../data/repositories/auth_repository.dart';
+import '../domain/repositories/auth_repository.dart' as domain;
 import '../models/usuario.dart';
 
-/// Controlador de autenticación: valida datos y coordina con el repositorio.
 class AuthController {
-  AuthController({AuthRepository? repository})
-    : _repository = repository ?? AuthRepository();
+  AuthController({domain.AuthRepository? repository})
+    : _repository = repository ?? FirebaseAuthRepository();
 
-  final AuthRepository _repository;
+  final domain.AuthRepository _repository;
+
+  String? get currentUserId => _repository.currentUserId;
 
   Future<Usuario> registrar({
     required String nombreCompleto,
     required String email,
     required String password,
-  }) async {
-    try {
-      return await _repository.crearUsuario(
-        nombreCompleto: nombreCompleto,
-        email: email,
-        password: password,
-      );
-    } on EmailYaRegistradoException {
-      throw Exception('Este correo ya está registrado, inicia sesión.');
-    }
-  }
+  }) => _repository.registrar(
+    nombreCompleto: nombreCompleto,
+    email: email,
+    password: password,
+  );
 
   Future<Usuario> iniciarSesion({
     required String email,
     required String password,
-  }) async {
-    try {
-      return await _repository.validarCredenciales(
-        email: email,
-        password: password,
-      );
-    } on CredencialesInvalidasException {
-      throw Exception('Correo o contraseña incorrectos');
-    }
-  }
+  }) => _repository.iniciarSesion(email: email, password: password);
 
-  Future<Usuario?> obtenerPorId(String id) {
-    return _repository.obtenerPorId(id);
-  }
+  Future<Usuario?> obtenerPorId(String id) => _repository.obtenerPorId(id);
+
+  Future<void> cerrarSesion() => _repository.cerrarSesion();
 }
