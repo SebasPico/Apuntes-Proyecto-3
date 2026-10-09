@@ -45,6 +45,27 @@ Los códigos QR contienen un identificador `nido://space/{groupId}/{spaceId}`. E
 - Crear espacios y verlos sincronizados en tiempo real.
 - Generar un QR real por espacio y escanearlo con la cámara.
 - Crear, editar, eliminar y ajustar productos; los cambios de cantidad se aplican dentro de una transacción de Firestore.
-- Ver la lista de reposición y alertas al cargar esas pantallas.
+- Consultar alertas persistentes cuando un producto cruza su mínimo o se agota; tocar una alerta abre y resalta el producto.
+- Recibir notificaciones push en dispositivos registrados, si el usuario concede el permiso.
 
-Las notificaciones push remotas, el historial de cambios y la exportación del QR como archivo aún requieren servicios/funciones adicionales; no se simulan como si ya estuvieran implementadas.
+## Activar notificaciones
+
+Las alertas del historial se crean desde Cloud Functions para evitar que un cliente suplante avisos. Para compilar y desplegar la función:
+
+1. Usa Node.js 22 e instala Firebase CLI (`npm install -g firebase-tools`).
+2. Inicia sesión en Firebase CLI y selecciona el proyecto Firebase correcto (`firebase use <project-id>`).
+3. Desde la raíz del proyecto instala las dependencias bloqueadas de la función:
+
+   ```bash
+   npm --prefix functions ci
+   ```
+
+4. Despliega reglas y función desde la raíz del proyecto:
+
+   ```bash
+   firebase deploy --only firestore:rules,functions
+   ```
+
+5. En iOS, configura APNs en Firebase y genera la configuración/entitlements de notificaciones para la app. Android solicita el permiso de notificaciones en tiempo de ejecución.
+
+El despliegue de Cloud Functions requiere un plan de Firebase que permita Functions. Las notificaciones push requieren que FCM esté habilitado para el proyecto y que el usuario otorgue permiso. Si se deniega, el historial dentro de la aplicación sigue disponible. Los avisos se conservan en `groups/{groupId}/notifications`; cada integrante puede marcar los avisos como leídos sin alterar el estado de lectura de los demás.

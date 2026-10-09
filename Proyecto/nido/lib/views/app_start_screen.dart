@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../controllers/sesion_state.dart';
+import '../services/notification_service.dart';
 import 'auth/login_screen.dart';
 import 'grupo_familiar/grupo_familiar_screen.dart';
 import 'home/home_screen.dart';
@@ -48,6 +49,8 @@ class _AppStartScreenState extends State<AppStartScreen> {
       MaterialPageRoute(builder: (_) => destino),
       (_) => false,
     );
+    await Future<void>.delayed(Duration.zero);
+    await NotificationService.openPending();
   }
 
   @override

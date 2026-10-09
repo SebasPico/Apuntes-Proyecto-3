@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 
 import '../models/grupo_familiar.dart';
 import '../models/usuario.dart';
+import '../services/notification_service.dart';
 import 'auth_controller.dart';
 import 'grupo_controller.dart';
 
@@ -31,12 +32,14 @@ class SesionState extends ChangeNotifier {
 
     grupo = await _grupoController.obtenerGrupoDeUsuario(usuarioId);
     notifyListeners();
+    await NotificationService.registerDevice(usuarioId);
   }
 
   Future<void> iniciarSesion(Usuario nuevoUsuario) async {
     usuario = nuevoUsuario;
     grupo = await _grupoController.obtenerGrupoDeUsuario(nuevoUsuario.id);
     notifyListeners();
+    await NotificationService.registerDevice(nuevoUsuario.id);
   }
 
   void establecerGrupo(GrupoFamiliar nuevoGrupo) {
@@ -58,6 +61,10 @@ class SesionState extends ChangeNotifier {
   }
 
   Future<void> cerrarSesion() async {
+    final userId = usuario?.id;
+    if (userId != null) {
+      await NotificationService.unregisterDevice(userId);
+    }
     await _authController.cerrarSesion();
     usuario = null;
     grupo = null;

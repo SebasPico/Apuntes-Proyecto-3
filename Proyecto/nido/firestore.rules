@@ -35,6 +35,19 @@ service cloud.firestore {
             'email'
           ]);
       allow delete: if false;
+
+      match /devices/{tokenId} {
+        allow read: if signedIn() && request.auth.uid == uid;
+        allow create, update: if signedIn()
+            && request.auth.uid == uid
+            && request.resource.data.token == tokenId
+            && request.resource.data.keys().hasOnly([
+              'token',
+              'updatedAt',
+              'platform'
+            ]);
+        allow delete: if signedIn() && request.auth.uid == uid;
+      }
     }
 
     match /group_codes/{code} {
@@ -100,6 +113,19 @@ service cloud.firestore {
         allow read, delete: if false;
       }
 
+      match /notifications/{notificationId} {
+        allow get, list: if isMember(groupId);
+        allow create, delete: if false;
+        allow update: if isMember(groupId)
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+              'leidaPor'
+            ])
+            && request.auth.uid in request.resource.data.leidaPor
+            && request.resource.data.leidaPor.hasAll(resource.data.leidaPor)
+            && request.resource.data.leidaPor.size()
+                == resource.data.leidaPor.size() + 1;
+      }
+
       match /spaces/{spaceId} {
         allow read: if isMember(groupId);
         allow create: if isMember(groupId)
@@ -133,6 +159,7 @@ service cloud.firestore {
           allow update: if isMember(groupId)
               && request.resource.data.grupoId == groupId
               && request.resource.data.espacioId == spaceId
+              && request.resource.data.actualizadoPor == request.auth.uid
               && request.resource.data.cantidad is int
               && request.resource.data.cantidad >= 0
               && request.resource.data.cantidadMinima is int

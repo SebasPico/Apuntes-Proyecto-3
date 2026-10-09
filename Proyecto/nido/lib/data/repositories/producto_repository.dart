@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 import '../../domain/repositories/producto_repository.dart' as domain;
 import '../../models/producto.dart';
@@ -10,6 +11,7 @@ class FirebaseProductoRepository implements domain.ProductoRepository {
   final FirebaseFirestore? _providedFirestore;
   FirebaseFirestore get _firestore =>
       _providedFirestore ?? FirebaseFirestore.instance;
+  FirebaseAuth get _auth => FirebaseAuth.instance;
 
   CollectionReference<Map<String, dynamic>> _products({
     required String groupId,
@@ -80,6 +82,7 @@ class FirebaseProductoRepository implements domain.ProductoRepository {
     ).doc(producto.id);
     await reference.update({
       ...producto.toMap(),
+      'actualizadoPor': _auth.currentUser?.uid ?? producto.creadoPor,
       'fechaActualizacion': FieldValue.serverTimestamp(),
     });
   }
@@ -96,6 +99,7 @@ class FirebaseProductoRepository implements domain.ProductoRepository {
     ).doc(producto.id);
     await reference.update({
       'cantidad': FieldValue.increment(cambio),
+      'actualizadoPor': _auth.currentUser?.uid ?? producto.creadoPor,
       'fechaActualizacion': FieldValue.serverTimestamp(),
     });
   }

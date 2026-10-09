@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'navigation/app_navigator.dart';
 import 'views/app_start_screen.dart';
 
 class NidoApp extends StatelessWidget {
@@ -11,6 +12,7 @@ class NidoApp extends StatelessWidget {
 
     return MaterialApp(
       title: 'Nido',
+      navigatorKey: appNavigatorKey,
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         useMaterial3: true,

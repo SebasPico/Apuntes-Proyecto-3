@@ -8,9 +8,14 @@ import '../espacios/detalle_espacio_screen.dart';
 import 'producto_form_screen.dart';
 
 class InventarioScreen extends StatefulWidget {
-  const InventarioScreen({super.key, required this.espacio});
+  const InventarioScreen({
+    super.key,
+    required this.espacio,
+    this.productoIdInicial,
+  });
 
   final Espacio espacio;
+  final String? productoIdInicial;
 
   @override
   State<InventarioScreen> createState() => _InventarioScreenState();
@@ -18,7 +23,9 @@ class InventarioScreen extends StatefulWidget {
 
 class _InventarioScreenState extends State<InventarioScreen> {
   final _controller = ProductoController();
+  final _productoInicialKey = GlobalKey();
   String _search = '';
+  bool _reveladoProductoInicial = false;
 
   Future<void> _agregarProducto(Producto producto) async {
     await _ejecutar(() async {
@@ -78,9 +85,35 @@ class _InventarioScreenState extends State<InventarioScreen> {
             body: Center(child: CircularProgressIndicator()),
           );
         }
+        _revelarProductoInicial(snapshot.data!);
         return _buildInventory(context, snapshot.data!);
       },
     );
+  }
+
+  void _revelarProductoInicial(List<Producto> products) {
+    final productId = widget.productoIdInicial;
+    if (_reveladoProductoInicial || productId == null) return;
+    _reveladoProductoInicial = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final exists = products.any((product) => product.id == productId);
+      final targetContext = _productoInicialKey.currentContext;
+      if (!exists || targetContext == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('El producto asociado al aviso ya no existe.'),
+          ),
+        );
+        return;
+      }
+      Scrollable.ensureVisible(
+        targetContext,
+        duration: const Duration(milliseconds: 450),
+        curve: Curves.easeInOut,
+        alignment: 0.2,
+      );
+    });
   }
 
   Widget _buildInventory(BuildContext context, List<Producto> products) {
@@ -181,7 +214,11 @@ class _InventarioScreenState extends State<InventarioScreen> {
                   return Padding(
                     padding: const EdgeInsets.only(bottom: 12),
                     child: _ProductTile(
+                      key: product.id == widget.productoIdInicial
+                          ? _productoInicialKey
+                          : null,
                       product: product,
+                      highlighted: product.id == widget.productoIdInicial,
                       onIncrease: () => _ajustarCantidad(product, 1),
                       onDecrease: () => _ajustarCantidad(product, -1),
                       onEdit: () async {
@@ -234,7 +271,9 @@ class _InventarioScreenState extends State<InventarioScreen> {
 
 class _ProductTile extends StatelessWidget {
   const _ProductTile({
+    super.key,
     required this.product,
+    required this.highlighted,
     required this.onIncrease,
     required this.onDecrease,
     required this.onEdit,
@@ -242,6 +281,7 @@ class _ProductTile extends StatelessWidget {
   });
 
   final Producto product;
+  final bool highlighted;
   final Future<void> Function() onIncrease;
   final Future<void> Function() onDecrease;
   final Future<void> Function() onEdit;
@@ -259,10 +299,15 @@ class _ProductTile extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.78),
+        color: highlighted
+            ? const Color(0xFFFFE6B8)
+            : Colors.white.withValues(alpha: 0.78),
         borderRadius: BorderRadius.circular(18),
         border: Border.all(
-          color: needsAttention
+          width: highlighted ? 2 : 1,
+          color: highlighted
+              ? const Color(0xFFE07A5F)
+              : needsAttention
               ? const Color(0xFFE8C6B9)
               : const Color(0xFFE4DDD2),
         ),

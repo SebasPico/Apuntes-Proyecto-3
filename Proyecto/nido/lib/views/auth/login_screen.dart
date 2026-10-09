@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../controllers/auth_controller.dart';
 import '../../controllers/sesion_state.dart';
+import '../../services/notification_service.dart';
 import '../../utils/validators.dart';
 import '../grupo_familiar/grupo_familiar_screen.dart';
 import '../home/home_screen.dart';
@@ -54,6 +55,8 @@ class _LoginScreenState extends State<LoginScreen> {
         ),
         (_) => false,
       );
+      await Future<void>.delayed(Duration.zero);
+      await NotificationService.openPending();
     } catch (error) {
       if (!mounted) return;
       setState(() {
